@@ -99,11 +99,68 @@ pip install opencv-python
 pip install opencv-contrib-python
 ```
 5. Preparing your custom dataset for training
+Add train images to [train](./train) and test images to [test](./test)
+```bash
+python xml_to_csv.py
+```
+Creating a pbtxt file (This is required by object detection api)
+```bash
+python generate_pbtxt.py csv train_labels.csv label_map.pbtxt
+```
+Generating TFRecord files
+```bash
+python generate_tfreccords.py train_labels.csv annotations/label_map.pbtxt train train_tf_record.record
+python generate_tfreccords.py test_labels.csv annotations/label_map.pbtxt test test_tf_record.record
+```
 6. Downloading the pre-trained model weights
+I will be using SSD model with MobileNetV2 backbone as it is small model that can fit in a small GPU memory. You can check the other pretrained model with coco dataset in [model zoo](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf2_detection_zoo.md)
+```bash
+# download the mobilenet_v2 model
+wget http://download.tensorflow.org/models/object_detection/tf2/20200711/ssd_mobilenet_v2_320x320_coco17_tpu-8.tar.gz
+# extract the downloaded file
+tar -xzvf ssd_mobilenet_v2_320x320_coco17_tpu-8.tar.gz
+```
+I saved these these weights to [pre-trained-models](./pre-trained-models)
 7. Configuring the pipeline configurations
+Once the weights and config file is downloaded you can tweak pipeline.config parameters:
+
+* Used `num_classes: 3` as we have only three class (apple, orange, banana), instead of 90 classes in coco dataset.
+* Changed `fine_tune_checkpoint_type: "classification"` to `fine_tune_checkpoint_type: "detection"` as we are using the pre-trained detection model as initialization.
+* Added the path of the pretrained model in the field `fine_tune_checkpoint:`, for example using the mobilenet v2 model I added `fine_tune_checkpoint: "./models/ssd_mobilenet_v2_320x320_coco17_tpu-8/checkpoint/ckpt-0"`  
+* Changed `batch_size: 512` and used a reasonable number to my GPU memory. I have a 4GB of GPU memory, so I am using `batch_size: 8`
+* Added the maximum number of training iterations in `num_steps:`, and also used the same number in `total_steps:`
+* Adapted the learning rate to our model and batch size (originally they used higher learning rates because they had bigger batch sizes). This values needs some testing and tuning.
+* The `label_map_path:` should point to our labelmap file (here the raccoon labelmap) `label_map_path: "./annotations/labelmap.pbtxt"`
+* You need to set the `tf_record_input_reader` under both `train_input_reader` and `eval_input_reader`. This should point to the tfrecords we generated (one for training and one for validation).
+    ```
+    train_input_reader: {
+        label_map_path: "./annotations/labelmap.pbtxt"
+        tf_record_input_reader {
+            input_path: "../annotations/train.record"
+        }
+    }
+    ``` 
+
 8. Training the model
-9. Check the training progress
+```bash
+python model_main_tf2.py --model_dir=models/my_ssd_mobilenet_v2 \   
+                         --pipeline_config_path=models/my_ssd_mobilenet_v2/pipeline.config \
+                         --alsologtostderr
+```
+9. Check the training progress - you can use the Tensorboard to check the same
+
 10. Exporting the trained model
+```bash
+python exporter_main_v2.py --input_type="image_tensor" \
+                           --output_directory=streamlit_ui/exported_model \
+                           --pipeline_config_path=models/my_ssd_mobilenet_v2/pipeline.config \
+                           --trained_checkpoint_dir=models/my_ssd_mobilenet_v2/
+```
+
+## What can be done to improve the results?
+- We can use the different pre-trained model as per the business need for higher accuracy
+- We can use other Network like YoloV4 to detect the same
+- We can fine tune the trained model by hyperparameter tuning.
 
 # Credits:
 - [Tensorflow][tensorflowodapi] team 

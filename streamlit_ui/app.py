@@ -12,7 +12,7 @@ physical_devices = tf.config.experimental.list_physical_devices('GPU')
 if len(physical_devices) > 0:
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-MODEL_PATH = './temp1/saved_model/'
+MODEL_PATH = './exported_model/saved_model/'
 demo_image = './images/apple_48.jpg'
 saved_model = tf.saved_model.load(
                 str(MODEL_PATH), 
